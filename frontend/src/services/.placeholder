@@ -1,0 +1,10 @@
+// services/analysisService.js — API client for the backend.
+//
+// POST /api/v1/analyze-match
+//   body:    { query: string }
+//   returns: { analysis: { summary, form, head_to_head,
+//                          league_position, insights, final_verdict } }
+//
+// Centralising API calls here means components never use fetch/axios directly.
+// Swapping the base URL (dev → prod) happens in one place.
+// TODO: implement using fetch or axios

@@ -1,0 +1,52 @@
+# Render Blueprint Configuration
+# This file defines the infrastructure for deploying the AI Football Research System
+
+services:
+  # Backend API Service
+  - type: web
+    name: aifootball-backend
+    runtime: python
+    plan: free # Change to 'starter' or higher for production
+    region: oregon # Choose your preferred region
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ALLOWED_ORIGINS
+        sync: false # Set in Render dashboard
+      - key: OPENAI_API_KEY
+        sync: false # Set in Render dashboard (secret)
+      - key: FOOTBALL_API_KEY
+        sync: false # Set in Render dashboard (secret)
+    healthCheckPath: /health
+
+  # Frontend Static Site
+  - type: web
+    name: aifootball-frontend
+    runtime: static
+    plan: free
+    region: oregon # Match backend region for lower latency
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false # Set to your backend URL in Render dashboard
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

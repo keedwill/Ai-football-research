@@ -1,0 +1,4 @@
+// pages/AnalysisPage.jsx — Full analysis page.
+// Composes MatchForm + AnalysisResult components.
+// Owns local state: query input, loading flag, analysis result.
+// TODO: implement

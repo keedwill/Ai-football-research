@@ -1,0 +1,9 @@
+// components/MatchForm.jsx — Input form for match query.
+// TODO: implement text input + submit button
+
+// components/AnalysisResult.jsx — Structured display of agent response.
+// TODO: implement sections: summary, form, h2h, league position, insights, verdict
+
+// Each component lives in its own file.
+// Keep components presentational — no API calls here.
+// API calls belong in services/analysisService.js

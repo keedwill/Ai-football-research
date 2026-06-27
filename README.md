@@ -574,6 +574,14 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
+## 🌐 Live Demo
+
+- **Frontend**: https://aifootball-frontend.onrender.com
+- **Backend API**:https://ai-football-backend.onrender.com
+- **API Docs**: https://ai-football-backend.onrender.com/docs
+
+---
+
 <p align="center">
   Made with ❤️ and ☕
 </p>

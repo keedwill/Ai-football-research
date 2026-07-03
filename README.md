@@ -1,6 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"/>
   <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React"/>
+  <img src="https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=google&logoColor=white" alt="Gemini"/>
   <img src="https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white" alt="OpenAI"/>
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
 </p>
@@ -12,7 +13,7 @@
 </p>
 
 <p align="center">
-  Powered by <strong>GPT-4</strong> • <strong>LangChain</strong> • <strong>FastAPI</strong> • <strong>React</strong>
+  Powered by <strong>Gemini</strong> • <strong>Tavily</strong> • <strong>LangChain</strong> • <strong>FastAPI</strong> • <strong>React</strong>
 </p>
 
 <p align="center">
@@ -27,7 +28,7 @@
 
 ## 📖 About
 
-**AI Football Research System** is an advanced full-stack application that leverages artificial intelligence to provide comprehensive football match analysis. The system uses a LangChain agent powered by GPT-4 to orchestrate multiple data sources (team form, head-to-head records, league standings, season statistics) and synthesize intelligent insights.
+**AI Football Research System** is an advanced full-stack application that leverages artificial intelligence to provide comprehensive football match analysis. The system uses a LangChain agent powered by **Google Gemini** (free tier) with OpenAI GPT-4 fallback, orchestrating a single comprehensive Tavily search for real-time football data and synthesizing intelligent insights.
 
 ### Why This Project?
 
@@ -45,9 +46,11 @@ This project demonstrates:
 
 ### 🤖 **AI-Powered Analysis**
 
-- **GPT-4 Integration**: Intelligent synthesis of match data into tactical insights
-- **Fallback Logic**: Graceful degradation to rule-based analysis when LLM unavailable
+- **Multi-LLM Support**: Google Gemini (free, priority) → OpenAI GPT-4 → Ollama (local)
+- **Intelligent Synthesis**: LLM analyzes comprehensive match data into tactical insights
+- **Fallback Logic**: Graceful degradation when LLM unavailable
 - **Context-Aware**: Analyzes form, statistics, and historical data
+- **Optimized**: Single Tavily search (85% reduction in API calls)
 
 ### 📊 **Comprehensive Data**
 
@@ -65,9 +68,9 @@ This project demonstrates:
 
 ### 🌐 **Live Data Support**
 
-- **API-Football Integration**: Real-time match data (optional)
-- **Mock Data Fallback**: Comprehensive Premier League mock dataset
-- **Hybrid Mode**: Uses live data when available, mock as fallback
+- **Tavily API**: Real-time web search for latest match data, team form, and statistics
+- **Comprehensive Search**: Single query fetching form, H2H, league standings, and stats
+- **Optimized Volume**: 8 results, 800 chars each, 8000 total limit for speed
 
 ### 💻 **Modern Frontend**
 
@@ -111,20 +114,15 @@ This project demonstrates:
 │                    │                                       │
 │  ┌─────────────────▼────────────────────────────────┐    │
 │  │  Agent Layer (football_agent.py)                 │    │
-│  │  • Team extraction • Tool orchestration          │    │
-│  │  • GPT-4 synthesis or rule-based fallback        │    │
+│  │  • Team extraction • Single Tavily search        │    │
+│  │  • Gemini/OpenAI/Ollama synthesis                │    │
 │  └─────────────────┬────────────────────────────────┘    │
 │                    │                                       │
 │  ┌─────────────────▼────────────────────────────────┐    │
-│  │  Tools Layer (tools/*.py)                        │    │
-│  │  ┌────┐ ┌────┐ ┌───────┐ ┌────────┐            │    │
-│  │  │Form│ │H2H │ │League │ │Stats   │            │    │
-│  │  └────┘ └────┘ └───────┘ └────────┘            │    │
-│  └─────────────────┬────────────────────────────────┘    │
-│                    │                                       │
-│  ┌─────────────────▼────────────────────────────────┐    │
-│  │  Data Sources                                     │    │
-│  │  • API-Football • Mock Database                   │    │
+│  │  Data Source (tavily_client.py)                  │    │
+│  │  • Single comprehensive web search               │    │
+│  │  • Returns: Form + H2H + League + Stats          │    │
+│  │  • 8 results, 800 chars each (optimized)         │    │
 │  └───────────────────────────────────────────────────┘    │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -133,13 +131,13 @@ This project demonstrates:
 
 | Layer       | Location            | Purpose                                   | Key Principles                         |
 | ----------- | ------------------- | ----------------------------------------- | -------------------------------------- |
-| **API**     | `app/api/routes.py` | HTTP endpoints, request/response handling | No business logic, only I/O            |
-| **Service** | `app/services/`     | Business logic orchestration              | Stateless, transaction boundaries      |
-| **Agent**   | `app/agents/`       | AI orchestration, tool calling            | LLM integration, intelligent synthesis |
-| **Tools**   | `app/tools/`        | Data retrieval functions                  | Pure functions, no side effects        |
-| **Models**  | `app/models/`       | Data schemas (Pydantic)                   | Single source of truth for contracts   |
-| **Config**  | `app/config/`       | Environment settings                      | Centralized configuration              |
-| **Utils**   | `app/utils/`        | Shared utilities                          | Logging, exceptions, constants         |
+| **API**     | `app/api/routes.py`  | HTTP endpoints, request/response handling | No business logic, only I/O            |
+| **Service** | `app/services/`      | Business logic orchestration              | Stateless, transaction boundaries      |
+| **Agent**   | `app/agents/`        | AI orchestration, data synthesis          | LLM integration, intelligent analysis  |
+| **Data**    | `app/services/`      | Tavily web search client                  | Single comprehensive search            |
+| **Models**  | `app/models/`        | Data schemas (Pydantic)                   | Single source of truth for contracts   |
+| **Config**  | `app/config/`        | Environment settings                      | Centralized configuration              |
+| **Utils**   | `app/utils/`         | Shared utilities                          | Logging, exceptions, constants         |
 
 ### Data Flow
 
@@ -147,10 +145,12 @@ This project demonstrates:
 2. **HTTP Request**: Frontend POST to `/api/v1/analyze-match`
 3. **Validation**: Pydantic validates request body
 4. **Service Call**: Route delegates to `analysis_service.analyze_match()`
-5. **Agent Execution**: Agent extracts teams, calls 4 tools (form, h2h, league, stats)
-6. **Synthesis**: GPT-4 analyzes all data and generates insights
+5. **Agent Execution**: Agent extracts teams, makes single comprehensive Tavily search
+6. **Synthesis**: Gemini/OpenAI/Ollama analyzes search data and generates insights
 7. **Response**: Structured JSON flows back through layers to frontend
 8. **Display**: React components render analysis sections
+
+**Optimization**: Single Tavily search (85% reduction in API calls vs old 7-tool approach)
 
 ---
 
@@ -160,8 +160,9 @@ This project demonstrates:
 
 - **Python 3.11+** (backend)
 - **Node.js 18+** (frontend)
-- **OpenAI API Key** (optional, for LLM features)
-- **API-Football Key** (optional, for live data)
+- **Google Gemini API Key** (recommended, free tier with 1,500 requests/day)
+- **OpenAI API Key** (optional, fallback LLM)
+- **Tavily API Key** (optional, 1,000 searches/month free)
 
 ### Installation
 
@@ -314,15 +315,18 @@ FastAPI provides auto-generated interactive docs:
 
 ### Backend
 
-| Technology    | Purpose           | Version |
-| ------------- | ----------------- | ------- |
-| **Python**    | Runtime           | 3.11+   |
-| **FastAPI**   | Web framework     | 0.111+  |
-| **Uvicorn**   | ASGI server       | 0.29+   |
-| **Pydantic**  | Data validation   | 2.7+    |
-| **LangChain** | AI orchestration  | 0.2+    |
-| **OpenAI**    | LLM provider      | GPT-4   |
-| **httpx**     | Async HTTP client | 0.27+   |
+| Technology              | Purpose            | Version |
+| ----------------------- | ------------------ | ------- |
+| **Python**              | Runtime            | 3.11+   |
+| **FastAPI**             | Web framework      | 0.111+  |
+| **Uvicorn**             | ASGI server        | 0.29+   |
+| **Gunicorn**            | Production server  | 21.2+   |
+| **Pydantic**            | Data validation    | 2.7+    |
+| **LangChain**           | AI orchestration   | 0.2+    |
+| **Google Gemini**       | Primary LLM (free) | 1.5     |
+| **OpenAI**              | Fallback LLM       | GPT-4   |
+| **Tavily**              | Web search API     | Latest  |
+| **httpx**               | Async HTTP client  | 0.27+   |
 
 ### Frontend
 
@@ -334,8 +338,9 @@ FastAPI provides auto-generated interactive docs:
 
 ### External APIs
 
-- **OpenAI API**: GPT-4 for intelligent analysis synthesis
-- **API-Football**: Live football data (optional)
+- **Google Gemini API**: Primary LLM (free tier, 1,500 requests/day)
+- **OpenAI API**: Fallback LLM for intelligent analysis synthesis
+- **Tavily API**: Real-time web search for match data (1,000 searches/month free)
 
 ---
 
@@ -362,15 +367,11 @@ aifootball/
 │   │   ├── services/
 │   │   │   ├── __init__.py
 │   │   │   ├── analysis_service.py   # Business logic
-│   │   │   └── football_api_client.py # External API client
-│   │   ├── tools/
-│   │   │   ├── __init__.py
-│   │   │   ├── form_tool.py          # Team form data
-│   │   │   ├── h2h_tool.py           # Head-to-head data
-│   │   │   ├── league_tool.py        # League standings
-│   │   │   └── stats_tool.py         # Season statistics
+│   │   │   ├── football_service.py   # Football operations
+│   │   │   └── tavily_client.py      # Tavily API search client
 │   │   └── utils/
 │   │       ├── __init__.py
+│   │       ├── async_helper.py       # Async utilities
 │   │       ├── constants.py          # App constants
 │   │       ├── exceptions.py         # Custom exceptions
 │   │       └── logger.py             # Logging config
@@ -379,11 +380,11 @@ aifootball/
 │   │   ├── test_api.py
 │   │   ├── test_architecture.py
 │   │   ├── test_frontend_integration.py
-│   │   ├── test_llm_integration.py
-│   │   └── test_tools.py
+│   │   └── test_llm_integration.py
 │   ├── .env.example                  # Environment template
 │   ├── .gitignore
-│   └── requirements.txt              # Python dependencies
+│   ├── requirements.txt              # Python dependencies
+│   └── start.sh                      # Production startup script
 │
 ├── frontend/                         # React frontend
 │   ├── src/
@@ -402,9 +403,8 @@ aifootball/
 │   ├── vite.config.js                # Vite configuration
 │   └── .gitignore
 │
-├── ARCHITECTURE.md                    # Detailed architecture docs
-├── API_SETUP_GUIDE.md                 # API key setup guide
-├── INTEGRATION_GUIDE.md               # Integration documentation
+├── render.yaml                        # Render deployment config
+├── DEPLOYMENT.md                      # Deployment guide
 ├── README.md                          # This file
 └── LICENSE                            # MIT License
 ```
@@ -418,11 +418,20 @@ aifootball/
 Create a `.env` file in `backend/` directory:
 
 ```env
-# OpenAI Configuration (optional - uses fallback if not set)
+# Google Gemini (RECOMMENDED - free tier, 1,500 requests/day)
+GOOGLE_API_KEY=AIza...your_gemini_key
+GEMINI_MODEL=gemini-1.5-flash-latest
+
+# OpenAI (optional fallback)
 OPENAI_API_KEY=sk-proj-your_key_here
 
-# API-Football Configuration (optional - uses mock data if not set)
-FOOTBALL_API_KEY=your_api_football_key
+# Tavily Search (optional - 1,000 searches/month free)
+TAVILY_API_KEY=tvly-dev-your_key
+
+# Ollama (optional local LLM)
+USE_OLLAMA=false
+OLLAMA_MODEL=llama3.1
+OLLAMA_BASE_URL=http://localhost:11434
 
 # Application Settings
 ENVIRONMENT=development

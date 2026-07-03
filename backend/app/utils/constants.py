@@ -22,10 +22,9 @@ TEAM_ABBREVIATIONS = {
     "Spurs": TOTTENHAM,
 }
 
-# API Configuration
+# API Configuration (legacy constants, may be removed in future)
 PREMIER_LEAGUE_ID = 39
 DEFAULT_SEASON = 2023
-API_FOOTBALL_BASE_URL = "https://v3.football.api-football.com"
 
 # Response messages
 ERROR_TEAM_NOT_FOUND = "Unable to extract team names from query"

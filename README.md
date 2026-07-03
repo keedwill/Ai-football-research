@@ -129,15 +129,15 @@ This project demonstrates:
 
 ### Layer Responsibilities
 
-| Layer       | Location            | Purpose                                   | Key Principles                         |
-| ----------- | ------------------- | ----------------------------------------- | -------------------------------------- |
-| **API**     | `app/api/routes.py`  | HTTP endpoints, request/response handling | No business logic, only I/O            |
-| **Service** | `app/services/`      | Business logic orchestration              | Stateless, transaction boundaries      |
-| **Agent**   | `app/agents/`        | AI orchestration, data synthesis          | LLM integration, intelligent analysis  |
-| **Data**    | `app/services/`      | Tavily web search client                  | Single comprehensive search            |
-| **Models**  | `app/models/`        | Data schemas (Pydantic)                   | Single source of truth for contracts   |
-| **Config**  | `app/config/`        | Environment settings                      | Centralized configuration              |
-| **Utils**   | `app/utils/`         | Shared utilities                          | Logging, exceptions, constants         |
+| Layer       | Location            | Purpose                                   | Key Principles                        |
+| ----------- | ------------------- | ----------------------------------------- | ------------------------------------- |
+| **API**     | `app/api/routes.py` | HTTP endpoints, request/response handling | No business logic, only I/O           |
+| **Service** | `app/services/`     | Business logic orchestration              | Stateless, transaction boundaries     |
+| **Agent**   | `app/agents/`       | AI orchestration, data synthesis          | LLM integration, intelligent analysis |
+| **Data**    | `app/services/`     | Tavily web search client                  | Single comprehensive search           |
+| **Models**  | `app/models/`       | Data schemas (Pydantic)                   | Single source of truth for contracts  |
+| **Config**  | `app/config/`       | Environment settings                      | Centralized configuration             |
+| **Utils**   | `app/utils/`        | Shared utilities                          | Logging, exceptions, constants        |
 
 ### Data Flow
 
@@ -315,18 +315,18 @@ FastAPI provides auto-generated interactive docs:
 
 ### Backend
 
-| Technology              | Purpose            | Version |
-| ----------------------- | ------------------ | ------- |
-| **Python**              | Runtime            | 3.11+   |
-| **FastAPI**             | Web framework      | 0.111+  |
-| **Uvicorn**             | ASGI server        | 0.29+   |
-| **Gunicorn**            | Production server  | 21.2+   |
-| **Pydantic**            | Data validation    | 2.7+    |
-| **LangChain**           | AI orchestration   | 0.2+    |
-| **Google Gemini**       | Primary LLM (free) | 1.5     |
-| **OpenAI**              | Fallback LLM       | GPT-4   |
-| **Tavily**              | Web search API     | Latest  |
-| **httpx**               | Async HTTP client  | 0.27+   |
+| Technology        | Purpose            | Version |
+| ----------------- | ------------------ | ------- |
+| **Python**        | Runtime            | 3.11+   |
+| **FastAPI**       | Web framework      | 0.111+  |
+| **Uvicorn**       | ASGI server        | 0.29+   |
+| **Gunicorn**      | Production server  | 21.2+   |
+| **Pydantic**      | Data validation    | 2.7+    |
+| **LangChain**     | AI orchestration   | 0.2+    |
+| **Google Gemini** | Primary LLM (free) | 1.5     |
+| **OpenAI**        | Fallback LLM       | GPT-4   |
+| **Tavily**        | Web search API     | Latest  |
+| **httpx**         | Async HTTP client  | 0.27+   |
 
 ### Frontend
 
@@ -485,13 +485,14 @@ This project is ready for production deployment to **Render** (or similar platfo
 
 2. **Deploy Backend** (Render Web Service)
    - Build Command: `cd backend && pip install -r requirements.txt`
-   - Start Command: `cd backend && gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
+   - Start Command: `cd backend && gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 180 --graceful-timeout 120 --keep-alive 5`
    - Environment Variables:
      ```
      ENVIRONMENT=production
      ALLOWED_ORIGINS=https://your-frontend.onrender.com
-     OPENAI_API_KEY=sk-proj-...
-     FOOTBALL_API_KEY=...
+     GOOGLE_API_KEY=AIza...
+     TAVILY_API_KEY=tvly-dev-...
+     OPENAI_API_KEY=sk-proj-... (optional)
      ```
 
 3. **Deploy Frontend** (Render Static Site)
@@ -561,8 +562,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 🙏 Acknowledgments
 
-- **OpenAI** for GPT-4 API
-- **API-Football** for comprehensive football data
+- **Google** for Gemini API and free tier
+- **Tavily** for comprehensive web search API
+- **OpenAI** for GPT-4 API fallback
 - **FastAPI** team for excellent framework
 - **LangChain** community for AI orchestration tools
 

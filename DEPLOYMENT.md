@@ -8,8 +8,9 @@ Complete guide for deploying AI Football Research System to Render.
 
 - [ ] GitHub repository created and code pushed
 - [ ] Render account created (https://render.com)
-- [ ] OpenAI API key obtained (optional)
-- [ ] API-Football key obtained (optional)
+- [ ] Google Gemini API key obtained (recommended, free tier)
+- [ ] Tavily API key obtained (recommended, 1,000 searches/month free)
+- [ ] OpenAI API key obtained (optional, paid fallback)
 - [ ] Review and test code locally
 
 ---
@@ -49,11 +50,15 @@ Complete guide for deploying AI Football Research System to Render.
    ENVIRONMENT=production
    ALLOWED_ORIGINS=https://your-frontend-name.onrender.com
 
-   # Optional (for LLM features)
-   OPENAI_API_KEY=sk-proj-your-key-here
+   # Recommended (free tier LLM)
+   GOOGLE_API_KEY=AIza...your-gemini-key
+   GEMINI_MODEL=gemini-1.5-flash-latest
 
-   # Optional (for live data)
-   FOOTBALL_API_KEY=your-api-football-key
+   # Recommended (free tier data source)
+   TAVILY_API_KEY=tvly-dev-...your-key
+
+   # Optional (paid LLM fallback)
+   OPENAI_API_KEY=sk-proj-your-key-here
    ```
 
 4. **Deploy**
@@ -174,8 +179,8 @@ Expected response:
   "status": "healthy",
   "environment": "production",
   "checks": {
-    "llm": "available",
-    "football_api": "available"
+    "llm": "gemini",
+    "data_source": "tavily"
   }
 }
 ```
@@ -201,13 +206,15 @@ curl -X POST https://aifootball-backend-xxx.onrender.com/api/v1/analyze-match \
 
 ### Backend Environment Variables
 
-| Variable           | Required | Description                     | Example                      |
-| ------------------ | -------- | ------------------------------- | ---------------------------- |
-| `ENVIRONMENT`      | Yes      | Deployment environment          | `production`                 |
-| `ALLOWED_ORIGINS`  | Yes      | Frontend URLs (comma-separated) | `https://myapp.onrender.com` |
-| `OPENAI_API_KEY`   | No       | OpenAI API key for LLM          | `sk-proj-...`                |
-| `FOOTBALL_API_KEY` | No       | API-Football key for live data  | `abc123...`                  |
-| `LOG_LEVEL`        | No       | Logging level                   | `INFO` (default)             |
+| Variable           | Required    | Description                        | Example                      |
+| ------------------ | ----------- | ---------------------------------- | ---------------------------- |
+| `ENVIRONMENT`      | Yes         | Deployment environment             | `production`                 |
+| `ALLOWED_ORIGINS`  | Yes         | Frontend URLs (comma-separated)    | `https://myapp.onrender.com` |
+| `GOOGLE_API_KEY`   | Recommended | Gemini API key (free tier)         | `AIza...`                    |
+| `GEMINI_MODEL`     | No          | Gemini model name                  | `gemini-1.5-flash-latest`    |
+| `TAVILY_API_KEY`   | Recommended | Tavily search API (1,000 free/mo) | `tvly-dev-...`               |
+| `OPENAI_API_KEY`   | No          | OpenAI API key (paid fallback)     | `sk-proj-...`                |
+| `LOG_LEVEL`        | No          | Logging level                      | `INFO` (default)             |
 
 ### Frontend Environment Variables
 
@@ -541,8 +548,8 @@ Add live demo link:
 - [ ] Frontend deployed and loads in browser
 - [ ] CORS configured correctly (no console errors)
 - [ ] Can submit analysis query and get results
-- [ ] OpenAI integration working (if configured)
-- [ ] API-Football integration working (if configured)
+- [ ] Gemini LLM working (check startup logs)
+- [ ] Tavily search returning data
 - [ ] Environment variables set correctly
 - [ ] Auto-deploy enabled
 - [ ] Logs accessible in Render dashboard

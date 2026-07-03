@@ -139,8 +139,9 @@ class FootballAPIClient:
             params = {"team": team_id, "league": league_id, "season": season}
             stats = await self._make_request("/teams/statistics", params)
             
-            if stats:
-                return stats
+            # API-Football returns statistics in first element
+            if stats and len(stats) > 0:
+                return stats[0]
             
             return None
             

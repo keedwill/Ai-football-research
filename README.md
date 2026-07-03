@@ -168,7 +168,7 @@ This project demonstrates:
 #### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/ai-football-research.git
+git clone https://github.com/keedwill/Ai-football-research
 cd ai-football-research
 ```
 
@@ -544,9 +544,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **Your Name**
 
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your Name](https://linkedin.com/in/yourprofile)
-- Portfolio: [yourwebsite.com](https://yourwebsite.com)
+- GitHub: [@yourusername](https://github.com/keedwill)
+- LinkedIn: [Your Name](https://www.linkedin.com/in/princewill-owoh-201745131/)
+- Portfolio: [yourwebsite.com](https://princewillowoh.onrender.com/)
 
 ---
 

@@ -64,12 +64,22 @@ app.include_router(router, prefix="/api/v1", tags=["Analysis"])
 @app.get("/health", tags=["System"])
 async def health_check():
     """Comprehensive health check for monitoring."""
+    # Determine which LLM is active (priority: Gemini > OpenAI > Ollama)
+    if settings.google_api_key:
+        llm_status = "gemini"
+    elif settings.openai_api_key and not settings.use_ollama:
+        llm_status = "openai"
+    elif settings.use_ollama:
+        llm_status = "ollama"
+    else:
+        llm_status = "disabled"
+    
     health_status = {
         "status": "healthy",
         "environment": settings.environment,
         "checks": {
-            "llm": "available" if settings.openai_api_key else "disabled",
-            "football_api": "available" if settings.football_api_key else "disabled",
+            "llm": llm_status,
+            "data_source": "tavily" if settings.tavily_api_key else "mock"
         }
     }
     return health_status
@@ -80,8 +90,18 @@ async def startup_event():
     """Log application startup information."""
     logger.info(f"Starting AI Football Research System")
     logger.info(f"Environment: {settings.environment}")
-    logger.info(f"OpenAI API: {'Configured' if settings.openai_api_key else 'Not configured'}")
-    logger.info(f"Football API: {'Configured' if settings.football_api_key else 'Not configured'}")
+    
+    # Priority: Gemini (FREE) > OpenAI (PAID) > Ollama (LOCAL)
+    if settings.google_api_key:
+        logger.info(f"LLM: Google Gemini ({settings.gemini_model}) - FREE TIER")
+    elif settings.openai_api_key and not settings.use_ollama:
+        logger.info("LLM: OpenAI (gpt-4o-mini) - PAID")
+    elif settings.use_ollama:
+        logger.info(f"LLM: Ollama ({settings.ollama_model}) at {settings.ollama_base_url} - LOCAL")
+    else:
+        logger.info("LLM: Not configured (using rule-based fallback)")
+    
+    logger.info(f"Tavily API: {'Configured' if settings.tavily_api_key else 'Not configured'}")
 
 
 @app.on_event("shutdown")

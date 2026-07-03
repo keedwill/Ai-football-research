@@ -22,11 +22,20 @@ class Settings(BaseSettings):
     For Render deployment:
     - Set environment variables in Render dashboard
     - ALLOWED_ORIGINS should be comma-separated: "https://your-app.onrender.com,https://www.yourapp.com"
+    - TAVILY_API_KEY: Get from https://tavily.com (1000 searches/month free)
     """
     
     # API Keys
     openai_api_key: str = ""
-    football_api_key: str = ""
+    tavily_api_key: str = ""
+    google_api_key: str = ""  # Google Gemini API key
+    
+    # LLM Configuration
+    use_ollama: bool = False  # Set to True for development with Ollama
+    use_gemini: bool = False  # Set to True to use Google Gemini (free tier available)
+    ollama_base_url: str = "http://localhost:11434"  # Ollama server URL
+    ollama_model: str = "llama3.1"  # Ollama model to use
+    gemini_model: str = "gemini-2.5-flash"  # Gemini model (flash is fast and free)
     
     # Application
     environment: str = "development"

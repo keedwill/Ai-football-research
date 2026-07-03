@@ -1,203 +1,125 @@
 """
 tools/form_tool.py — Tool: get recent team form.
 
-Returns the last 5 match results for a given team.
-Uses API-Football for live data, falls back to mock data if API unavailable.
+Returns the last 5 match results for any team (club or national).
+Uses Tavily AI search for live data exclusively.
 """
 
-from app.services.football_api_client import get_football_api_client
+from langchain_openai import ChatOpenAI
+from langchain_community.llms import Ollama
+from app.services.tavily_client import get_tavily_client
 from app.config.settings import settings
 from app.utils.logger import get_logger
-import asyncio
+from app.utils.async_helper import run_async
 
 logger = get_logger(__name__)
 
 
 async def get_team_form_live(team_name: str) -> str:
     """
-    Get recent form using API-Football API.
+    Get recent form using Tavily AI search + GPT-4 extraction.
     
     Args:
         team_name: Name of the team
     
     Returns:
-        String describing recent form with actual match results
+        String describing recent form with match results
     """
     try:
-        client = get_football_api_client()
+        client = get_tavily_client()
         
-        # Search for team
-        team_id = await client.search_team(team_name)
-        if not team_id:
-            logger.warning(f"Could not find team ID for '{team_name}'")
+        # Search for team form
+        search_results = await client.search_team_form(team_name)
+        if not search_results:
+            logger.warning(f"No Tavily results for '{team_name}' form")
             return None
         
-        # Get recent fixtures
-        fixtures = await client.get_team_fixtures(team_id, last=5)
-        if not fixtures:
+        # Use GPT-4 to extract structured form data
+        if not (settings.use_ollama or settings.openai_api_key):
+            logger.warning("No LLM configured, cannot extract form data")
             return None
         
-        form_pattern = ""
-        results = []
+        if settings.use_ollama:
+            llm = Ollama(
+                model=settings.ollama_model,
+                base_url=settings.ollama_base_url,
+                temperature=0
+            )
+        else:
+            llm = ChatOpenAI(model="gpt-4", temperature=0, api_key=settings.openai_api_key)
         
-        for fixture in fixtures:
-            home = fixture["teams"]["home"]["name"]
-            away = fixture["teams"]["away"]["name"]
-            home_goals = fixture["goals"]["home"]
-            away_goals = fixture["goals"]["away"]
-            
-            # Determine result from team's perspective
-            if fixture["teams"]["home"]["id"] == team_id:
-                # Team played at home
-                if home_goals > away_goals:
-                    form_pattern += "W"
-                    result = f"{home} {home_goals}-{away_goals} {away} (W)"
-                elif home_goals < away_goals:
-                    form_pattern += "L"
-                    result = f"{home} {home_goals}-{away_goals} {away} (L)"
-                else:
-                    form_pattern += "D"
-                    result = f"{home} {home_goals}-{away_goals} {away} (D)"
-            else:
-                # Team played away
-                if away_goals > home_goals:
-                    form_pattern += "W"
-                    result = f"{home} {home_goals}-{away_goals} {away} (W)"
-                elif away_goals < home_goals:
-                    form_pattern += "L"
-                    result = f"{home} {home_goals}-{away_goals} {away} (L)"
-                else:
-                    form_pattern += "D"
-                    result = f"{home} {home_goals}-{away_goals} {away} (D)"
-            
-            results.append(result)
+        prompt = f"""Extract the last 5 match results for {team_name} from this text.
+
+Format your response EXACTLY like this:
+{team_name} Recent Form: [W/D/L pattern]
+    [Match result 1]
+    [Match result 2]
+    [Match result 3]
+    [Match result 4]
+    [Match result 5]
+
+Examples:
+Arsenal Recent Form: WWDWL
+    Arsenal 2-0 Brighton (W)
+    Wolves 1-2 Arsenal (W)
+    Arsenal 2-2 Liverpool (D)
+    West Ham 0-6 Arsenal (W)
+    Arsenal 1-3 Manchester City (L)
+
+Brazil Recent Form: WWLWD
+    Brazil 4-1 Peru (W)
+    Colombia 0-1 Brazil (W)
+    Brazil 0-1 Argentina (L)
+    Uruguay 1-1 Brazil (D)
+    Brazil 5-1 Bolivia (W)
+
+Text to extract from:
+{search_results}
+
+IMPORTANT INSTRUCTIONS:
+- If you can find ANY recent match results (even just 1-3 matches), extract them in the format above
+- If you cannot find ANY match results at all, respond with EXACTLY: "NO_DATA_FOUND"
+- Do NOT provide explanations about missing data
+- Do NOT say things like "The text provided does not contain..."
+- Either provide match results in the format above OR respond with exactly "NO_DATA_FOUND"""
         
-        # Format output
-        output = f"{team_name} Recent Form: {form_pattern}\n"
-        for result in results:
-            output += f"    {result}\n"
+        response = llm.invoke(prompt)
+        extracted_form = response.content if hasattr(response, 'content') else response
         
-        return output.strip()
+        # Check if GPT-4 couldn't extract data
+        if "NO_DATA_FOUND" in extracted_form or "does not contain" in extracted_form.lower() or "cannot find" in extracted_form.lower() or len(extracted_form) < 50:
+            logger.warning(f"GPT-4 could not extract form data for {team_name}, response: {extracted_form[:100]}")
+            return None
+        
+        logger.info(f"Extracted form data for {team_name}")
+        return extracted_form
         
     except Exception:
-        logger.exception("Error fetching live form data")
+        logger.exception("Error fetching live form data with Tavily")
         return None
 
 
 def get_team_form(team_name: str) -> str:
     """
-    Get the last 5 match results for a team.
-    
-    Uses live API data if available, falls back to mock data.
+    Get the last 5 match results for a team using Tavily search.
     
     Args:
         team_name: Name of the team (e.g., "Arsenal", "Chelsea")
     
     Returns:
-        String describing recent form (W/D/L pattern and match results)
+        String describing recent form, or unavailable message
     """
-    # Try live data first if API key is configured
-    if settings.football_api_key:
-        logger.info(f"Attempting to fetch live form data for {team_name}")
-        try:
-            # Run async function in sync context
-            live_data = asyncio.run(get_team_form_live(team_name))
-            if live_data:
-                logger.info(f"Successfully fetched live form data for {team_name}")
-                return live_data
-            else:
-                logger.warning(f"Live data unavailable for {team_name}, using mock data")
-        except Exception:
-            logger.exception("Error fetching live data, falling back to mock data")
-    else:
-        logger.info("FOOTBALL_API_KEY not set, using mock data")
+    if not settings.tavily_api_key:
+        return f"{team_name} Recent Form: Data unavailable (Tavily API key not configured)"
     
-    # Fallback to mock data
-    # Mock form data for popular Premier League teams
-    mock_forms = {
-        "Arsenal": {
-            "form": "WWDWW",
-            "results": [
-                "Arsenal 2-0 Brighton (W)",
-                "Wolves 1-2 Arsenal (W)",
-                "Arsenal 2-2 Liverpool (D)",
-                "West Ham 0-6 Arsenal (W)",
-                "Arsenal 3-1 Crystal Palace (W)"
-            ]
-        },
-        "Chelsea": {
-            "form": "WLDLW",
-            "results": [
-                "Chelsea 2-1 Newcastle (W)",
-                "Man United 2-1 Chelsea (L)",
-                "Chelsea 1-1 Burnley (D)",
-                "Aston Villa 1-0 Chelsea (L)",
-                "Chelsea 3-2 Brighton (W)"
-            ]
-        },
-        "Manchester United": {
-            "form": "LWDWW",
-            "results": [
-                "Man United 2-1 Chelsea (W)",
-                "Man United 3-0 Everton (W)",
-                "Nottingham Forest 2-2 Man United (D)",
-                "Tottenham 2-0 Man United (L)",
-                "Man United 1-0 Wolves (L)"
-            ]
-        },
-        "Liverpool": {
-            "form": "WWWDW",
-            "results": [
-                "Liverpool 4-1 Brentford (W)",
-                "Arsenal 2-2 Liverpool (D)",
-                "Liverpool 2-0 Sheffield United (W)",
-                "Bournemouth 0-3 Liverpool (W)",
-                "Liverpool 5-1 West Ham (W)"
-            ]
-        },
-        "Manchester City": {
-            "form": "WWWWL",
-            "results": [
-                "Aston Villa 1-0 Man City (L)",
-                "Man City 5-1 Luton (W)",
-                "Man City 3-1 Newcastle (W)",
-                "Brighton 1-4 Man City (W)",
-                "Man City 2-0 Everton (W)"
-            ]
-        },
-        "Tottenham": {
-            "form": "WLWDW",
-            "results": [
-                "Tottenham 3-1 Burnley (W)",
-                "Tottenham 2-2 Everton (D)",
-                "Tottenham 2-0 Man United (W)",
-                "Newcastle 4-0 Tottenham (L)",
-                "Tottenham 2-1 Crystal Palace (W)"
-            ]
-        }
-    }
-    
-    # Normalize team name (case-insensitive, handle variations)
-    normalized_name = team_name.strip().title()
-    
-    # Check for common abbreviations
-    abbreviations = {
-        "Man United": "Manchester United",
-        "Man Utd": "Manchester United",
-        "United": "Manchester United",
-        "Man City": "Manchester City",
-        "City": "Manchester City",
-        "Spurs": "Tottenham"
-    }
-    
-    if normalized_name in abbreviations:
-        normalized_name = abbreviations[normalized_name]
-    
-    if normalized_name in mock_forms:
-        data = mock_forms[normalized_name]
-        form = data["form"]
-        results = "\n    ".join(data["results"])
-        return f"{normalized_name} Recent Form: {form}\n    {results}"
-    else:
-        # Generic response for teams not in mock data
-        return f"{team_name} Recent Form: WDWDL (mock data not available for this team)"
+    logger.info(f"Fetching live form data for {team_name}")
+    try:
+        live_data = run_async(get_team_form_live(team_name))
+        if live_data:
+            logger.info(f"Successfully fetched live form data for {team_name}")
+            return live_data
+        else:
+            return f"{team_name} Recent Form: Data currently unavailable from search results"
+    except Exception:
+        logger.exception("Error fetching live form data")
+        return f"{team_name} Recent Form: Error retrieving data"

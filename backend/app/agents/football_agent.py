@@ -4,19 +4,21 @@ agents/football_agent.py — Football analysis orchestration agent.
 This agent receives a natural-language query about a football match and
 orchestrates calls to multiple tools to build a comprehensive analysis.
 
-Now powered by OpenAI LLM for intelligent synthesis instead of rule-based logic.
+Supports both Ollama (development) and OpenAI (production) for intelligent synthesis.
+
+OPTIMIZED: Uses single Tavily search instead of 7 separate searches.
 """
 
 import re
 from typing import Tuple, Optional
 from langchain_openai import ChatOpenAI
-from app.tools.form_tool import get_team_form
-from app.tools.h2h_tool import get_head_to_head
-from app.tools.league_tool import get_league_position
-from app.tools.stats_tool import get_team_statistics
+from langchain_community.llms import Ollama
+from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.tavily_client import get_tavily_client
 from app.models.analysis import AnalysisDetail, AnalysisResponse
 from app.config.settings import settings
 from app.utils.logger import get_logger
+from app.utils.async_helper import run_async
 
 logger = get_logger(__name__)
 
@@ -73,189 +75,208 @@ def extract_teams(query: str) -> Tuple[Optional[str], Optional[str]]:
 def synthesize_analysis(
     team_a: str,
     team_b: str,
-    form_a: str,
-    form_b: str,
-    h2h: str,
-    league_a: str,
-    league_b: str,
-    stats_a: str,
-    stats_b: str
+    search_data: str
 ) -> AnalysisDetail:
     """
-    Synthesize tool outputs into structured analysis using OpenAI LLM.
+    Synthesize comprehensive search data into structured analysis using LLM.
     
-    Uses GPT-4 to generate intelligent insights based on all tool data.
+    OPTIMIZED: Takes single search result instead of 7 separate tool outputs.
+    LLM extracts and structures all required sections from the raw data.
+    
+    Uses Ollama (development) or OpenAI (production) to generate intelligent insights.
     Falls back to rule-based synthesis if LLM is unavailable.
+    
+    Args:
+        team_a: First team name
+        team_b: Second team name
+        search_data: Comprehensive Tavily search results
+    
+    Returns:
+        AnalysisDetail with all structured sections
     """
-    # Try LLM-powered synthesis if API key is configured
-    if settings.openai_api_key:
+    # Try LLM-powered synthesis
+    llm_available = settings.google_api_key or settings.use_ollama or settings.openai_api_key
+    
+    if llm_available:
         try:
-            logger.info("Using OpenAI LLM for analysis synthesis")
+            # Priority: Gemini (FREE) > OpenAI (PAID) > Ollama (LOCAL)
+            if settings.google_api_key:
+                logger.info(f"Using Google Gemini ({settings.gemini_model}) for analysis synthesis")
+                llm = ChatGoogleGenerativeAI(
+                    model=settings.gemini_model,
+                    temperature=0.3,
+                    google_api_key=settings.google_api_key
+                )
+            elif settings.openai_api_key and not settings.use_ollama:
+                logger.info("Using OpenAI LLM for analysis synthesis")
+                llm = ChatOpenAI(
+                    model="gpt-4o-mini",  # Faster and cheaper than gpt-3.5-turbo
+                    temperature=0.3,  # Lower temp = faster inference
+                    api_key=settings.openai_api_key
+                )
+            elif settings.use_ollama:
+                logger.info(f"Using Ollama ({settings.ollama_model}) for analysis synthesis")
+                llm = Ollama(
+                    model=settings.ollama_model,
+                    base_url=settings.ollama_base_url,
+                    temperature=0.3,  # Lower temp = faster inference
+                    num_ctx=2048,  # Limit context window for speed
+                    num_predict=800,  # Limit response length for speed
+                )
+            else:
+                logger.warning("No LLM configured properly")
+                llm_available = False
             
-            # Initialize ChatOpenAI
-            llm = ChatOpenAI(
-                model="gpt-4",
-                temperature=0.7,
-                api_key=settings.openai_api_key
-            )
-            
-            # Construct comprehensive prompt
-            prompt = f"""You are a professional football analyst. Analyze the following match data and provide structured insights.
+            # OPTIMIZED: Shorter, more direct prompt for faster processing
+            prompt = f"""Analyze this football match data and extract key information.
 
 Match: {team_a} vs {team_b}
 
-RECENT FORM:
-{team_a}:
-{form_a}
+DATA:
+{search_data}
 
-{team_b}:
-{form_b}
+Extract and format these sections:
+- FORM: Recent results for both teams
+- HEAD_TO_HEAD: Recent meetings between them
+- LEAGUE_POSITION: Current standings for both
+- SUMMARY: 2-3 sentence match overview
+- INSIGHTS: 3 key analytical points
+- VERDICT: Match prediction (2 sentences)
 
-HEAD-TO-HEAD RECORD:
-{h2h}
+Use this EXACT format:
 
-LEAGUE POSITIONS:
-{league_a}
+FORM:
+[data]
 
-{league_b}
+HEAD_TO_HEAD:
+[data]
 
-SEASON STATISTICS:
-{team_a}:
-{stats_a}
+LEAGUE_POSITION:
+[data]
 
-{team_b}:
-{stats_b}
+SUMMARY:
+[data]
 
-Based on this data, provide:
-1. A brief summary (2-3 sentences)
-2. 3-4 key insights analyzing form, league position, and statistics
-3. A final verdict on the expected outcome (2-3 sentences)
+INSIGHTS:
+[data]
 
-Be specific, analytical, and reference the actual data. Focus on tactical and statistical observations."""
+VERDICT:
+[data]"""
 
-            # Get LLM response
+            # Get LLM response (handle different response formats)
             response = llm.invoke(prompt)
-            content = response.content
+            if isinstance(response, str):
+                # Ollama returns string directly
+                content = response
+            else:
+                # OpenAI and Gemini return message objects
+                content = response.content
             
-            # Parse LLM response (simple split-based parsing)
-            lines = content.strip().split('\n')
-            
-            # Extract sections (this is a simple heuristic parser)
-            summary_text = ""
-            insights_text = ""
-            verdict_text = ""
+            # Parse the structured response
+            sections = {
+                "form": "",
+                "head_to_head": "",
+                "league_position": "",
+                "summary": "",
+                "insights": "",
+                "verdict": ""
+            }
             
             current_section = None
+            lines = content.strip().split('\n')
+            
             for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
+                line_upper = line.strip().upper()
                 
                 # Detect section headers
-                if "summary" in line.lower() or line.startswith("1."):
+                if line_upper.startswith("FORM:"):
+                    current_section = "form"
+                    continue
+                elif line_upper.startswith("HEAD_TO_HEAD:") or line_upper.startswith("HEAD-TO-HEAD:"):
+                    current_section = "head_to_head"
+                    continue
+                elif line_upper.startswith("LEAGUE_POSITION:") or line_upper.startswith("LEAGUE POSITION:"):
+                    current_section = "league_position"
+                    continue
+                elif line_upper.startswith("SUMMARY:"):
                     current_section = "summary"
                     continue
-                elif "insight" in line.lower() or line.startswith("2."):
+                elif line_upper.startswith("INSIGHTS:") or line_upper.startswith("KEY INSIGHTS:"):
                     current_section = "insights"
                     continue
-                elif "verdict" in line.lower() or "outcome" in line.lower() or line.startswith("3."):
+                elif line_upper.startswith("VERDICT:") or line_upper.startswith("FINAL VERDICT:"):
                     current_section = "verdict"
                     continue
                 
-                # Append to appropriate section
-                if current_section == "summary":
-                    summary_text += line + " "
-                elif current_section == "insights":
-                    insights_text += line + " "
-                elif current_section == "verdict":
-                    verdict_text += line + " "
+                # Append content to current section
+                if current_section and line.strip():
+                    sections[current_section] += line + "\n"
             
-            # Fallback: if parsing failed, use simple split
-            if not summary_text or not insights_text or not verdict_text:
-                parts = content.split('\n\n')
-                summary_text = parts[0] if len(parts) > 0 else f"Match Analysis: {team_a} vs {team_b}"
-                insights_text = parts[1] if len(parts) > 1 else content
-                verdict_text = parts[-1] if len(parts) > 2 else "Expected to be a competitive match."
+            # Clean up sections
+            for key in sections:
+                sections[key] = sections[key].strip()
             
-            # Clean up
-            summary_text = summary_text.strip() or f"Match Analysis: {team_a} vs {team_b}"
-            insights_text = insights_text.strip() or content
-            verdict_text = verdict_text.strip() or "This should be an interesting match."
+            # Ensure we have minimum content
+            if not sections["summary"]:
+                sections["summary"] = f"Match Analysis: {team_a} vs {team_b}"
+            if not sections["form"]:
+                sections["form"] = f"Form data for {team_a} and {team_b} - see search results above."
+            if not sections["head_to_head"]:
+                sections["head_to_head"] = "Head-to-head data unavailable or limited."
+            if not sections["league_position"]:
+                sections["league_position"] = "League position data - see search results above."
+            if not sections["insights"]:
+                sections["insights"] = f"This match between {team_a} and {team_b} should be competitive."
+            if not sections["verdict"]:
+                sections["verdict"] = "Expected to be a closely contested match."
             
-            # Combine form data for display
-            form = f"{team_a}:\n{form_a}\n\n{team_b}:\n{form_b}"
-            league_position = f"{league_a}\n\n{league_b}"
-            
-            logger.info("Successfully generated LLM-powered analysis")
+            logger.info("Successfully generated LLM-powered analysis from comprehensive search")
             
             return AnalysisDetail(
-                summary=summary_text,
-                form=form,
-                head_to_head=h2h,
-                league_position=league_position,
-                insights=insights_text,
-                final_verdict=verdict_text
+                summary=sections["summary"],
+                form=sections["form"],
+                head_to_head=sections["head_to_head"],
+                league_position=sections["league_position"],
+                insights=sections["insights"],
+                final_verdict=sections["verdict"]
             )
             
         except Exception:
             logger.exception("Error using LLM synthesis, falling back to rule-based")
     else:
-        logger.info("OPENAI_API_KEY not set, using rule-based synthesis")
+        logger.info("No LLM configured, using rule-based synthesis")
     
-    # Fallback to rule-based synthesis
+    # Fallback to simple rule-based synthesis
     summary = (
         f"Match Analysis: {team_a} vs {team_b}. "
-        f"Based on current form, league position, head-to-head record, "
-        f"and season statistics."
+        f"Analysis based on available live data from web sources."
     )
     
-    form = f"{team_a}:\n{form_a}\n\n{team_b}:\n{form_b}"
-    head_to_head = h2h
-    league_position = f"{league_a}\n\n{league_b}"
+    # Simple extraction attempts from search data
+    form = f"Recent form data for {team_a} and {team_b}:\n{search_data[:500]}..."
+    head_to_head = "Head-to-head history available in search data above."
+    league_position = f"League positions for {team_a} and {team_b} - refer to search data."
     
-    # Generate insights based on the data
-    insights = []
-    
-    if "WWW" in form_a and "LLL" in form_b:
-        insights.append(f"{team_a} are in excellent form while {team_b} are struggling.")
-    elif "WWW" in form_b and "LLL" in form_a:
-        insights.append(f"{team_b} are in excellent form while {team_a} are struggling.")
-    
-    if "Position: 1" in league_a or "Position: 2" in league_a:
-        insights.append(f"{team_a} are title contenders with strong league position.")
-    if "Position: 1" in league_b or "Position: 2" in league_b:
-        insights.append(f"{team_b} are title contenders with strong league position.")
-    
-    if "xG:" in stats_a and "xG:" in stats_b:
-        insights.append("Both teams show strong attacking metrics this season.")
-    
-    insights_text = " ".join(insights) if insights else (
-        f"Both {team_a} and {team_b} have shown competitive performances this season."
+    insights = (
+        f"Based on available data, both {team_a} and {team_b} are preparing for this match. "
+        f"Form, league position, and head-to-head records will influence the outcome."
     )
     
-    team_a_wins = form_a.count("(W)")
-    team_b_wins = form_b.count("(W)")
-    
-    if team_a_wins > team_b_wins + 1:
-        verdict = f"{team_a} enter this match with momentum and better recent form."
-    elif team_b_wins > team_a_wins + 1:
-        verdict = f"{team_b} enter this match with momentum and better recent form."
-    else:
-        verdict = f"This is expected to be a closely contested match between {team_a} and {team_b}."
+    verdict = f"This match between {team_a} and {team_b} should be competitive based on current data."
     
     return AnalysisDetail(
         summary=summary,
         form=form,
         head_to_head=head_to_head,
         league_position=league_position,
-        insights=insights_text,
+        insights=insights,
         final_verdict=verdict
     )
 
 
 async def run_analysis(query: str) -> AnalysisResponse:
     """
-    Main agent function: orchestrates tool calls and synthesizes analysis.
+    Main agent function: orchestrates comprehensive search and analysis.
     
     This is the public interface for the football analysis agent.
     It's called by the service layer and returns a structured response.
@@ -266,11 +287,13 @@ async def run_analysis(query: str) -> AnalysisResponse:
     Returns:
         AnalysisResponse with comprehensive match analysis
     
-    Architecture:
+    OPTIMIZED Architecture:
         1. Parse query to extract team names
-        2. Call all relevant tools in parallel (form, h2h, league, stats)
-        3. Synthesize tool outputs into structured analysis
+        2. Single comprehensive Tavily search for all data
+        3. LLM extracts and structures all sections from search results
         4. Return typed response
+        
+    Performance: 1 Tavily search instead of 7 (85% reduction in API calls)
     """
     logger.info(f"Football agent processing query: {query}")
     
@@ -291,40 +314,38 @@ async def run_analysis(query: str) -> AnalysisResponse:
             )
         )
     
-    # Step 2: Call all tools to gather data
-    logger.info(f"Calling tools for {team_a} vs {team_b}")
+    # Step 2: Single comprehensive search for all data
+    logger.info(f"Performing comprehensive search for {team_a} vs {team_b}")
     
     try:
-        # Get form for both teams
-        form_a = get_team_form(team_a)
-        form_b = get_team_form(team_b)
+        client = get_tavily_client()
         
-        # Get head-to-head record
-        h2h = get_head_to_head(team_a, team_b)
+        # ONE search instead of 7
+        search_data = await client.search_comprehensive_match_analysis(team_a, team_b)
         
-        # Get league positions
-        league_a = get_league_position(team_a)
-        league_b = get_league_position(team_b)
+        if not search_data:
+            logger.warning("No search data returned from Tavily")
+            return AnalysisResponse(
+                analysis=AnalysisDetail(
+                    summary=f"Unable to find data for {team_a} vs {team_b}",
+                    form="No data available from search",
+                    head_to_head="No data available",
+                    league_position="No data available",
+                    insights="Unable to gather sufficient data for analysis.",
+                    final_verdict="Insufficient data to make a prediction."
+                )
+            )
         
-        # Get season statistics
-        stats_a = get_team_statistics(team_a)
-        stats_b = get_team_statistics(team_b)
+        logger.info("Comprehensive search completed successfully")
         
-        logger.info("All tools executed successfully")
-        
-        # Step 3: Synthesize the analysis
-        analysis = synthesize_analysis(
-            team_a, team_b,
-            form_a, form_b, h2h,
-            league_a, league_b,
-            stats_a, stats_b
-        )
+        # Step 3: Synthesize the analysis from comprehensive data
+        analysis = synthesize_analysis(team_a, team_b, search_data)
         
         logger.info("Analysis synthesis complete")
         return AnalysisResponse(analysis=analysis)
         
     except Exception as e:
-        logger.exception(f"Error during tool execution: {str(e)}")
+        logger.exception(f"Error during analysis: {str(e)}")
         # Return a graceful error response
         return AnalysisResponse(
             analysis=AnalysisDetail(

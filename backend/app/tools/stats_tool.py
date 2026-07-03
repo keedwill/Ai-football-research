@@ -2,13 +2,22 @@
 tools/stats_tool.py — Tool: get season statistics for a team.
 
 Returns comprehensive season statistics including goals, xG, and tactical data.
-Currently uses mock data for popular Premier League teams.
+Uses Tavily AI search for live data exclusively.
 """
 
+from langchain_openai import ChatOpenAI
+from langchain_community.llms import Ollama
+from app.services.tavily_client import get_tavily_client
+from app.config.settings import settings
+from app.utils.logger import get_logger
+from app.utils.async_helper import run_async
 
-def get_team_statistics(team_name: str) -> str:
+logger = get_logger(__name__)
+
+
+async def get_team_statistics_live(team_name: str) -> str:
     """
-    Get comprehensive season statistics for a team.
+    Get team statistics using Tavily AI search + GPT-4 extraction.
     
     Args:
         team_name: Name of the team
@@ -16,120 +25,96 @@ def get_team_statistics(team_name: str) -> str:
     Returns:
         String with detailed season statistics
     """
-    from ..utils.constants import MANCHESTER_UNITED, MANCHESTER_CITY
-    
-    # Normalize team name
-    normalized_name = team_name.strip().title()
-    
-    # Handle abbreviations
-    abbreviations = {
-        "Man United": MANCHESTER_UNITED,
-        "Man Utd": MANCHESTER_UNITED,
-        "United": MANCHESTER_UNITED,
-        "Man City": MANCHESTER_CITY,
-        "City": MANCHESTER_CITY,
-        "Spurs": "Tottenham"
-    }
-    
-    normalized_name = abbreviations.get(normalized_name, normalized_name)
-    
-    # Mock season statistics
-    mock_stats = {
-        "Arsenal": {
-            "goals_scored": 71,
-            "goals_conceded": 28,
-            "xg_for": 68.4,
-            "xg_against": 25.2,
-            "shots_per_game": 17.2,
-            "possession_avg": 61.3,
-            "pass_accuracy": 87.5,
-            "clean_sheets": 14,
-            "home_record": "13W-2D-0L",
-            "away_record": "9W-4D-2L"
-        },
-        "Chelsea": {
-            "goals_scored": 52,
-            "goals_conceded": 48,
-            "xg_for": 54.8,
-            "xg_against": 46.3,
-            "shots_per_game": 14.8,
-            "possession_avg": 56.7,
-            "pass_accuracy": 85.2,
-            "clean_sheets": 8,
-            "home_record": "9W-3D-3L",
-            "away_record": "5W-4D-6L"
-        },
-        "Manchester United": {
-            "goals_scored": 48,
-            "goals_conceded": 45,
-            "xg_for": 52.1,
-            "xg_against": 43.7,
-            "shots_per_game": 13.5,
-            "possession_avg": 54.2,
-            "pass_accuracy": 83.8,
-            "clean_sheets": 9,
-            "home_record": "10W-2D-3L",
-            "away_record": "6W-3D-6L"
-        },
-        "Liverpool": {
-            "goals_scored": 75,
-            "goals_conceded": 30,
-            "xg_for": 72.6,
-            "xg_against": 28.8,
-            "shots_per_game": 18.4,
-            "possession_avg": 63.1,
-            "pass_accuracy": 88.2,
-            "clean_sheets": 15,
-            "home_record": "14W-1D-0L",
-            "away_record": "10W-2D-3L"
-        },
-        "Manchester City": {
-            "goals_scored": 72,
-            "goals_conceded": 34,
-            "xg_for": 70.8,
-            "xg_against": 31.5,
-            "shots_per_game": 17.9,
-            "possession_avg": 65.4,
-            "pass_accuracy": 89.7,
-            "clean_sheets": 13,
-            "home_record": "13W-1D-1L",
-            "away_record": "9W-3D-3L"
-        },
-        "Tottenham": {
-            "goals_scored": 61,
-            "goals_conceded": 46,
-            "xg_for": 58.3,
-            "xg_against": 44.1,
-            "shots_per_game": 15.6,
-            "possession_avg": 52.8,
-            "pass_accuracy": 82.4,
-            "clean_sheets": 10,
-            "home_record": "11W-2D-2L",
-            "away_record": "7W-3D-5L"
-        }
-    }
-    
-    if normalized_name in mock_stats:
-        stats = mock_stats[normalized_name]
+    try:
+        client = get_tavily_client()
         
-        return (
-            f"{normalized_name} Season Statistics (30 games):\n"
-            f"    Goals Scored: {stats['goals_scored']}\n"
-            f"    Goals Conceded: {stats['goals_conceded']}\n"
-            f"    Goal Difference: +{stats['goals_scored'] - stats['goals_conceded']}\n"
-            f"    Expected Goals (xG): {stats['xg_for']}\n"
-            f"    Expected Goals Against (xGA): {stats['xg_against']}\n"
-            f"    Shots per Game: {stats['shots_per_game']}\n"
-            f"    Possession Average: {stats['possession_avg']}%\n"
-            f"    Pass Accuracy: {stats['pass_accuracy']}%\n"
-            f"    Clean Sheets: {stats['clean_sheets']}\n"
-            f"    Home Record: {stats['home_record']}\n"
-            f"    Away Record: {stats['away_record']}"
-        )
-    else:
-        # Generic response for teams not in mock data
-        return (
-            f"{team_name} Season Statistics:\n"
-            f"    Goals: 40 scored, 45 conceded\n"
-            f"    (Detailed mock data not available)"
-        )
+        # Search for team statistics
+        search_results = await client.search_team_statistics(team_name)
+        if not search_results:
+            logger.warning(f"No Tavily results for '{team_name}' statistics")
+            return None
+        
+        # Use GPT-4 to extract structured stats
+        if not (settings.use_ollama or settings.openai_api_key):
+            logger.warning("No LLM configured, cannot extract statistics")
+            return None
+        
+        if settings.use_ollama:
+            llm = Ollama(
+                model=settings.ollama_model,
+                base_url=settings.ollama_base_url,
+                temperature=0
+            )
+        else:
+            llm = ChatOpenAI(model="gpt-4", temperature=0, api_key=settings.openai_api_key)
+        
+        prompt = f"""Extract season statistics for {team_name} from this text.
+
+Format your response EXACTLY like this:
+{team_name} Season Statistics ([number] games):
+    Goals Scored: [number]
+    Goals Conceded: [number]
+    Goal Difference: [+/-number]
+    Clean Sheets: [number]
+    Home Record: [W]W-[D]D-[L]L
+    Away Record: [W]W-[D]D-[L]L
+
+Example:
+Arsenal Season Statistics (30 games):
+    Goals Scored: 71
+    Goals Conceded: 28
+    Goal Difference: +43
+    Clean Sheets: 14
+    Home Record: 13W-2D-0L
+    Away Record: 9W-4D-2L
+
+Text to extract from:
+{search_results}
+
+IMPORTANT INSTRUCTIONS:
+- If you can find ANY statistics for {team_name}, extract them in the format above
+- If you cannot find ANY statistics at all, respond with EXACTLY: "NO_DATA_FOUND"
+- Do NOT provide explanations about missing data
+- Do NOT say things like "The text provided does not contain..."
+- Either provide statistics in the format above OR respond with exactly "NO_DATA_FOUND"""
+        
+        response = llm.invoke(prompt)
+        extracted_stats = response.content if hasattr(response, 'content') else response
+        
+        # Check if GPT-4 couldn't extract data
+        if "NO_DATA_FOUND" in extracted_stats or "does not contain" in extracted_stats.lower() or "cannot find" in extracted_stats.lower() or len(extracted_stats) < 50:
+            logger.warning(f"GPT-4 could not extract statistics for {team_name}, response: {extracted_stats[:100]}")
+            return None
+        
+        logger.info(f"Extracted statistics for {team_name}")
+        return extracted_stats
+        
+    except Exception:
+        logger.exception("Error fetching live statistics with Tavily")
+        return None
+
+
+def get_team_statistics(team_name: str) -> str:
+    """
+    Get comprehensive season statistics for a team using Tavily search.
+    
+    Args:
+        team_name: Name of the team
+    
+    Returns:
+        String with detailed season statistics, or unavailable message
+    """
+    if not settings.tavily_api_key:
+        return f"{team_name} Season Statistics: Data unavailable (Tavily API key not configured)"
+    
+    logger.info(f"Fetching live statistics for {team_name}")
+    try:
+        live_data = run_async(get_team_statistics_live(team_name))
+        if live_data:
+            logger.info(f"Successfully fetched live statistics for {team_name}")
+            return live_data
+        else:
+            return f"{team_name} Season Statistics: Data currently unavailable from search results"
+    except Exception:
+        logger.exception("Error fetching live statistics")
+        return f"{team_name} Season Statistics: Error retrieving data"

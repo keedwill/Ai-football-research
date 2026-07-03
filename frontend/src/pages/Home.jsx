@@ -57,9 +57,9 @@ function Home() {
         {!isLoading && <ResultDisplay result={result} error={error} />}
       </main>
 
-      <footer className="page-footer">
+      {/* <footer className="page-footer">
         <p>Powered by FastAPI • LangChain • React</p>
-      </footer>
+      </footer> */}
     </div>
   );
 }

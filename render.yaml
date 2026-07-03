@@ -9,7 +9,7 @@ services:
     plan: free # Change to 'starter' or higher for production
     region: oregon # Choose your preferred region
     buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+    startCommand: "cd backend && gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 180 --graceful-timeout 120 --keep-alive 5"
     envVars:
       - key: ENVIRONMENT
         value: production

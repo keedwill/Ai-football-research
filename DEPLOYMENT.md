@@ -206,15 +206,15 @@ curl -X POST https://aifootball-backend-xxx.onrender.com/api/v1/analyze-match \
 
 ### Backend Environment Variables
 
-| Variable           | Required    | Description                        | Example                      |
-| ------------------ | ----------- | ---------------------------------- | ---------------------------- |
-| `ENVIRONMENT`      | Yes         | Deployment environment             | `production`                 |
-| `ALLOWED_ORIGINS`  | Yes         | Frontend URLs (comma-separated)    | `https://myapp.onrender.com` |
-| `GOOGLE_API_KEY`   | Recommended | Gemini API key (free tier)         | `AIza...`                    |
-| `GEMINI_MODEL`     | No          | Gemini model name                  | `gemini-1.5-flash-latest`    |
-| `TAVILY_API_KEY`   | Recommended | Tavily search API (1,000 free/mo) | `tvly-dev-...`               |
-| `OPENAI_API_KEY`   | No          | OpenAI API key (paid fallback)     | `sk-proj-...`                |
-| `LOG_LEVEL`        | No          | Logging level                      | `INFO` (default)             |
+| Variable          | Required    | Description                       | Example                      |
+| ----------------- | ----------- | --------------------------------- | ---------------------------- |
+| `ENVIRONMENT`     | Yes         | Deployment environment            | `production`                 |
+| `ALLOWED_ORIGINS` | Yes         | Frontend URLs (comma-separated)   | `https://myapp.onrender.com` |
+| `GOOGLE_API_KEY`  | Recommended | Gemini API key (free tier)        | `AIza...`                    |
+| `GEMINI_MODEL`    | No          | Gemini model name                 | `gemini-1.5-flash-latest`    |
+| `TAVILY_API_KEY`  | Recommended | Tavily search API (1,000 free/mo) | `tvly-dev-...`               |
+| `OPENAI_API_KEY`  | No          | OpenAI API key (paid fallback)    | `sk-proj-...`                |
+| `LOG_LEVEL`       | No          | Logging level                     | `INFO` (default)             |
 
 ### Frontend Environment Variables
 
